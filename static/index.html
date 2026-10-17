@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartText AI</title>
+    <script>
+        // Must run BEFORE first paint. If the shell class lands after the page
+        // has already painted, the window flashes an opaque rectangle and the
+        // transparent-window compositing keeps it — that is the white box
+        // around the orb.
+        (function () {
+            if (new URLSearchParams(location.search).get('shell') === 'desktop') {
+                document.documentElement.className += ' desktop-shell';
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="live.css">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <button class="history-toggle" title="History">
+        <i class="fas fa-history"></i>
+        <span id="historyCount" class="history-count"></span>
+    </button>
+
+    <div class="container">
+        <div class="lang-bar">
+            <span class="lang-bar-label">
+                <i class="fas fa-language"></i>
+                <span id="langBarText">שפת הדיבור</span>
+            </span>
+            <div class="lang-switch" id="langSwitch" role="group" aria-label="Voice language">
+                <button class="lang-opt" data-lang="he" type="button">
+                    <span class="flag">🇮🇱</span> עברית
+                </button>
+                <button class="lang-opt" data-lang="en" type="button">
+                    <span class="flag">🇺🇸</span> English
+                </button>
+            </div>
+        </div>
+
+        <header>
+            <div class="logo">
+                <i class="fas fa-brain"></i>
+                <h1>SmartText AI</h1>
+            </div>
+            <p class="subtitle">ניתוח וסיכום טקסטים באמצעות בינה מלאכותית</p>
+        </header>
+
+        <nav class="mode-tabs">
+            <!-- Text mode is kept in the code but hidden from the tabs. -->
+            <button class="mode-tab" data-mode="text" hidden>
+                <i class="fas fa-keyboard"></i> Text
+            </button>
+            <button class="mode-tab active" data-mode="voice">
+                <i class="fas fa-headset"></i> Live Voice
+                <span class="badge">Gemini</span>
+            </button>
+            <button class="mode-tab" data-mode="tools">
+                <i class="fas fa-toolbox"></i> Tools
+            </button>
+            <button class="mode-tab" data-mode="brain">
+                <i class="fas fa-brain"></i> Brain
+            </button>
+            <button class="mode-tab" data-mode="health">
+                <i class="fas fa-heart-pulse"></i> Health
+                <span id="healthBadge" class="health-badge"></span>
+            </button>
+        </nav>
+
+        <main id="textMode" class="hidden">
+            <section class="input-section">
+                <div class="input-wrapper">
+                    <div class="controls-bar">
+                        <select id="toneSelector" class="tone-select">
+                            <option value="Auto">✨ Auto Detect</option>
+                            <option value="Funny">🤣 Funny</option>
+                            <option value="Legal">⚖️ Legal</option>
+                            <option value="Poetic">📜 Poetic</option>
+                            <option value="Hebrew">🇮🇱 Translate to Hebrew</option>
+                        </select>
+                        <button id="micBtn" class="mic-btn" title="Speak"><i class="fas fa-microphone"></i></button>
+                        <div class="char-count">0 תווים</div>
+                    </div>
+                    <textarea id="inputText" placeholder="הדבק כאן את הטקסט שלך..."></textarea>
+                </div>
+
+                <div class="controls">
+                    <button id="btnSmartAnalyze" class="action-btn primary full-width">
+                        <i class="fas fa-brain"></i>
+                        Smart Analyze (AIS)
+                    </button>
+                </div>
+            </section>
+
+            <section class="output-section">
+                <div id="loading" class="hidden">
+                    <div class="spinner"></div>
+                    <p>AIS Pipeline: Analyzing text structure...</p>
+                </div>
+
+                <div id="aiBrain" class="ai-brain hidden">
+                    <div class="brain-header">
+                        <i class="fas fa-microchip"></i>
+                        <span>AI Decision Logic</span>
+                    </div>
+                    <div class="brain-content">
+                        <div class="brain-item">
+                            <span class="label">Detected Type:</span>
+                            <span id="detectedType" class="value">Academic</span>
+                        </div>
+                        <div class="brain-item">
+                            <span class="label">Confidence:</span>
+                            <span id="confidenceVal" class="value">98.5%</span>
+                        </div>
+                        <div class="brain-item">
+                            <span class="label">Action Taken:</span>
+                            <span id="actionTaken" class="value">Simplify & Summarize</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="resultContainer" class="result-card hidden">
+                    <div class="result-header">
+                        <h3><i class="fas fa-poll-h"></i> תוצאה</h3>
+                        <div class="header-actions">
+                            <div class="feedback-buttons">
+                                <button class="feedback-btn" onclick="sendFeedback('up')" title="Good Result"><i
+                                        class="fas fa-thumbs-up"></i></button>
+                                <button class="feedback-btn" onclick="sendFeedback('down')" title="Bad Result"><i
+                                        class="fas fa-thumbs-down"></i></button>
+                            </div>
+                            <button class="copy-btn" onclick="copyToClipboard()"><i class="far fa-copy"></i>
+                                העתק</button>
+                        </div>
+                    </div>
+                    <div id="resultText" class="result-content"></div>
+                </div>
+            </section>
+        </main>
+
+        <main id="voiceMode">
+            <section class="voice-stage">
+                <button id="talkBtn" class="talk-btn" aria-label="Start voice session">
+                    <span class="talk-ring"></span>
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <p id="voiceStatus" class="voice-status">
+                    Tap to start talking. Gemini listens to <em>how</em> you say it.
+                </p>
+                <div class="voice-actions">
+                    <button id="muteBtn" class="mini-btn" disabled>
+                        <i class="fas fa-microphone-slash"></i> Mute
+                    </button>
+                    <button id="endBtn" class="mini-btn danger" disabled>
+                        <i class="fas fa-phone-slash"></i> End
+                    </button>
+                </div>
+
+                <div class="wake-row">
+                    <label class="wake-toggle" for="wakeToggle">
+                        <input type="checkbox" id="wakeToggle">
+                        <span class="wake-track"><span class="wake-thumb"></span></span>
+                        <span class="wake-label">
+                            <i class="fas fa-ear-listen"></i>
+                            Hands-free — say <b id="wakePhrase">"Hey Gemini"</b>
+                        </span>
+                    </label>
+
+                    <div class="wake-config">
+                        <input type="text" id="wakePhraseInput" class="wake-input"
+                               list="wakePresets" autocomplete="off" spellcheck="false"
+                               placeholder="wake phrase" aria-label="Wake phrase">
+                        <datalist id="wakePresets"></datalist>
+                        <select id="wakeSensitivity" class="wake-select" aria-label="Sensitivity">
+                            <option value="loose">Sensitive</option>
+                            <option value="normal">Balanced</option>
+                            <option value="strict">Strict</option>
+                        </select>
+                    </div>
+
+                    <p class="wake-hint">
+                        Say <b>goodbye</b> (or just stop) and it returns to standby.
+                    </p>
+
+                    <p id="wakeStatus" class="wake-status"></p>
+                    <div id="wakeHeard" class="wake-heard hidden">
+                        <span class="wake-heard-label">heard</span>
+                        <span id="wakeHeardText" class="wake-heard-text"></span>
+                        <span id="wakeHeardScore" class="wake-heard-score"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section id="emotionCard" class="emotion-card hidden">
+                <div class="emotion-head">
+                    <i class="fas fa-heart-pulse"></i>
+                    <span>Detected Feeling</span>
+                    <span id="emotionTime" class="emotion-time"></span>
+                </div>
+                <div class="emotion-main">
+                    <div id="emotionFace" class="emotion-face">🙂</div>
+                    <div class="emotion-body">
+                        <div id="emotionName" class="emotion-name">neutral</div>
+                        <div class="meter">
+                            <div id="emotionBar" class="meter-fill"></div>
+                        </div>
+                        <div class="emotion-sub">
+                            <span id="emotionConf">confidence —</span>
+                            <span id="emotionEnergy" class="energy-pill"></span>
+                        </div>
+                    </div>
+                </div>
+                <p id="emotionEvidence" class="emotion-evidence"></p>
+            </section>
+
+            <section class="transcript-card">
+                <div class="transcript-head">
+                    <i class="fas fa-comments"></i> Live Transcript
+                </div>
+                <div id="transcript" class="transcript">
+                    <p class="transcript-empty">Nothing yet — start a session and speak.</p>
+                </div>
+            </section>
+        </main>
+
+        <main id="toolsMode" class="hidden" dir="ltr">
+            <section class="tools-card">
+                <div class="tools-head">
+                    <div>
+                        <h2><i class="fas fa-toolbox"></i> What she's allowed to do</h2>
+                        <p class="tools-sub">
+                            Switch any ability off and she won't be able to use it — the
+                            server refuses it, not just this page. Changes apply
+                            immediately, even mid-call.
+                        </p>
+                    </div>
+                    <div class="tools-bulk">
+                        <button id="toolsAllOn" class="mini-btn" type="button">All on</button>
+                        <button id="toolsAllOff" class="mini-btn" type="button">All off</button>
+                    </div>
+                </div>
+                <div id="toolsList" class="tools-list">
+                    <p class="tools-loading">Loading…</p>
+                </div>
+                <p id="toolsStatus" class="tools-status"></p>
+            </section>
+        </main>
+
+        <main id="brainMode" class="hidden" dir="ltr">
+            <section class="bcard">
+                <div class="bhead">
+                    <h2>🧠 Memory</h2>
+                    <p class="bsub">What she remembers between conversations. She keeps these
+                        notes herself; you can edit or delete anything. Loaded at the start of
+                        each conversation.</p>
+                </div>
+                <div id="brainMemory" class="bmem"></div>
+            </section>
+
+            <section class="bcard">
+                <div class="bhead">
+                    <h2>🔁 Routines</h2>
+                    <p class="bsub">Jobs that run on their own while you're away — the result
+                        pops up as a notification. They can read and look things up, but never
+                        delete, move, rename or send.</p>
+                </div>
+                <div id="brainRoutines"></div>
+                <details class="bform">
+                    <summary>+ New routine</summary>
+                    <div class="bform-grid">
+                        <input id="rtName" placeholder="Name — e.g. Morning briefing">
+                        <input id="rtSchedule" placeholder="When — e.g. every sun-thu at 08:00">
+                        <textarea id="rtPrompt" rows="2" placeholder="What to do — e.g. Tell me today's weather, my calendar and unread email."></textarea>
+                        <select id="rtSkill"><option value="">No skill</option></select>
+                        <button id="rtCreate" class="mini-btn" type="button">Create routine</button>
+                        <p id="rtMsg" class="bmsg"></p>
+                    </div>
+                    <p class="bhint">Schedules: in 30m · every 2h · daily at 08:00 · weekdays at 08:00 ·
+                        every sun-thu at 08:00 · every monday at 9am · at 2026-09-30 14:00 · cron 0 8 * * 0-4</p>
+                </details>
+                <div id="brainFeed"></div>
+            </section>
+
+            <section class="bcard">
+                <div class="bhead">
+                    <h2>📘 Skills</h2>
+                    <p class="bsub">Reusable how-tos she writes for herself after working something
+                        out. Only the one-line summary is loaded up front; the steps are read when
+                        needed.</p>
+                </div>
+                <div id="brainSkills"></div>
+            </section>
+
+            <section class="bcard">
+                <div class="bhead">
+                    <h2>💬 Past conversations</h2>
+                    <p id="brainSessions" class="bsub"></p>
+                </div>
+                <div class="bsearch">
+                    <input id="bsQuery" placeholder="Search what you talked about — works in Hebrew too">
+                    <button id="bsGo" class="mini-btn" type="button">Search</button>
+                </div>
+                <div id="bsResults"></div>
+            </section>
+        </main>
+
+        <main id="healthMode" class="hidden" dir="ltr">
+            <section class="health-summary" id="healthSummary">
+                <div class="hs-main">
+                    <span id="hsDot" class="hs-dot"></span>
+                    <div>
+                        <div id="hsTitle" class="hs-title">Checking connections…</div>
+                        <div id="hsSub" class="hs-sub">Every check is a live test.</div>
+                    </div>
+                </div>
+                <button id="healthRefresh" class="mini-btn" type="button">
+                    <i class="fas fa-rotate"></i> Check again
+                </button>
+            </section>
+            <div id="healthGrid" class="health-grid"></div>
+        </main>
+
+        <div id="confirmOverlay" class="confirm-overlay hidden">
+            <div class="confirm-box" role="alertdialog" aria-labelledby="confirmTitle">
+                <div class="confirm-icon" id="confirmIcon">⚠️</div>
+                <h3 id="confirmTitle">Confirm action</h3>
+                <p id="confirmBody" class="confirm-body"></p>
+                <p id="confirmPath" class="confirm-path"></p>
+                <div class="confirm-actions">
+                    <button id="confirmNo" class="mini-btn" type="button">Cancel</button>
+                    <button id="confirmYes" class="mini-btn confirm-go" type="button">Confirm</button>
+                </div>
+            </div>
+        </div>
+
+        <aside class="history-sidebar" id="historySidebar">
+            <div class="history-head">
+                <h3><i class="fas fa-history"></i> History</h3>
+                <div class="history-head-actions">
+                    <button id="historyClear" class="hist-head-btn" type="button" title="Clear all">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button id="historyClose" class="hist-head-btn" type="button" title="Close">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="historyList"></div>
+        </aside>
+
+        <footer>
+            <p class="disclaimer">
+                <i class="fas fa-exclamation-triangle"></i>
+                התוצאות מבוססות על מודל AI ועלולות להכיל טעויות או הטיות.
+            </p>
+        </footer>
+    </div>
+    <script src="desktop.js"></script>
+    <script src="script.js"></script>
+    <script src="history.js"></script>
+    <script src="wake-word.js"></script>
+    <script src="live.js"></script>
+    <script src="live-ui.js"></script>
+    <script src="tools.js"></script>
+    <script src="health.js"></script>
+    <script src="brain.js"></script>
+</body>
+
+</html>

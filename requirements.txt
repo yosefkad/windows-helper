@@ -1,0 +1,19 @@
+# Core: the web app (py -3.12 app.py)
+flask
+python-dotenv
+openai          # GPT-4o-mini: text mode + summary fallback
+google-genai    # Gemini: voice-session tokens, summaries, routines
+scikit-learn    # local Random Forest text classifier
+numpy
+joblib
+send2trash      # deletions go to the Recycle Bin, never permanent
+
+# Desktop app (py -3.12 desktop.py) - optional for the browser version
+pywebview       # the assistant panel (WebView2)
+pillow          # draws the round orb
+vosk            # offline wake word ("hey gemini")
+sounddevice     # microphone access for the wake word
+
+# Email through the installed Outlook app (Windows only).
+# Gmail direct (app password) uses only the Python standard library.
+pywin32

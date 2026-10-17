@@ -1,0 +1,16 @@
+# calendar + workspace are runtime data, not source
+*.pyc
+*.tmp
+.env
+__pycache__/
+brain.db
+brain.db-journal
+calendar.json
+feedback_log.json
+memories/
+routines.json
+routines.lock
+routines_feed.json
+tool_settings.json
+tool_settings.json.tmp
+workspace/
